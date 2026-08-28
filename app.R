@@ -75,9 +75,7 @@ fac_number <- function(x) {
   y <- stringr::str_squish(y)
   y[y %in% c("", "-", "—", "NA", "N/A")] <- NA_character_
   
-  # Turkish / financial-statement number handling:
-  # 1.234.567,89 -> 1234567.89
-  # 1,234,567.89 -> 1234567.89
+  
   both <- stringr::str_detect(y, "\\.") & stringr::str_detect(y, ",")
   
   turkish_style <- both &
@@ -118,7 +116,6 @@ fac_enrich_long <- function(raw) {
   names(raw) <- fac_clean_colnames(names(raw))
   nms <- names(raw)
   
-  # Already dashboard-ready data: just standardise/enrich it.
   metric_col <- fac_first_existing(
     nms,
     c("metric_id", "metricid", "metric", "id")
@@ -186,7 +183,6 @@ fac_enrich_long <- function(raw) {
     return(out)
   }
   
-  # Raw long master from the old parser.
   if (!is.na(company_col) &&
       !is.na(period_col) &&
       !is.na(value_col) &&
@@ -2111,9 +2107,7 @@ server <- function(input, output, session) {
     }, server = FALSE)
   }
   
-  # -----------------------------
-  # Fleet
-  # -----------------------------
+  
   fleet_period_data <- reactive({
     fleet |>
       filter(period == input$fleet_period, metric_id == input$fleet_metric)
