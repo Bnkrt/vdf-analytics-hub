@@ -1,0 +1,17 @@
+company,period,employees,employee_source
+VDF Filo,2026/06,57,current
+Garanti,2026/06,96,current
+Hedef,2026/06,187,current
+TEB Arval,2026/06,113,current
+VDF Filo,2025/12,59,reported
+Garanti,2025/12,96,reported
+Hedef,2025/12,185,reported
+TEB Arval,2025/12,114,reported
+Garanti,2025/06,88,reported
+VDF Filo,2025/06,59,fallback_2025_12
+Hedef,2025/06,185,fallback_2025_12
+TEB Arval,2025/06,114,fallback_2025_12
+VDF Filo,2024/12,59,fallback_2025_12
+Garanti,2024/12,96,fallback_2025_12
+Hedef,2024/12,185,fallback_2025_12
+TEB Arval,2024/12,114,fallback_2025_12

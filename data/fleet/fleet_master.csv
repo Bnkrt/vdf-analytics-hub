@@ -1,0 +1,167 @@
+company,period,metric_id,metric,value
+VDF Filo,2026/06,used_car_sales,Used Car Sales,849759554.0
+VDF Filo,2026/06,cost_of_uc_sales,Cost of UC Sales,621043513.0
+VDF Filo,2026/06,uc_sale_profit,UC Sale Profit,228716041.0
+VDF Filo,2026/06,leased_assets_net,Leased Assets - Net,15427503098.0
+VDF Filo,2026/06,impairment,Impairment,989810190.0
+VDF Filo,2026/06,shareholders_equity,Shareholders' Equity,12846512149.0
+VDF Filo,2026/06,profit_before_tax,Profit Before Tax,850842644.0
+VDF Filo,2026/06,profit_after_tax,Profit After Tax,414960427.0
+VDF Filo,2026/06,borrowings,Borrowings,1635322235.0
+VDF Filo,2026/06,interest_expense,Interest Expense,-339054491.0
+VDF Filo,2026/06,depreciation,Depreciation,435479881.0
+VDF Filo,2026/06,operational_profit,Operational Profit,1057606484.0
+VDF Filo,2025/12,used_car_sales,Used Car Sales,5943461440.1536
+VDF Filo,2025/12,cost_of_uc_sales,Cost of UC Sales,6374977342.8224
+VDF Filo,2025/12,uc_sale_profit,UC Sale Profit,-508153126.98277926
+VDF Filo,2025/12,leased_assets_net,Leased Assets - Net,15014017566.1568
+VDF Filo,2025/12,impairment,Impairment,-1731030362.1610699
+VDF Filo,2025/12,shareholders_equity,Shareholders' Equity,12426497982.6688
+VDF Filo,2025/12,profit_before_tax,Profit Before Tax,1118956291.328
+VDF Filo,2025/12,profit_after_tax,Profit After Tax,583057169.8176
+VDF Filo,2025/12,borrowings,Borrowings,2198703079.9872
+VDF Filo,2025/12,interest_expense,Interest Expense,-1190468589.056
+VDF Filo,2025/12,depreciation,Depreciation,2581405596.16
+VDF Filo,2025/12,operational_profit,Operational Profit,5602103030.022223
+VDF Filo,2025/06,used_car_sales,Used Car Sales,4253925200.0
+VDF Filo,2025/06,cost_of_uc_sales,Cost of UC Sales,4293088778.0
+VDF Filo,2025/06,uc_sale_profit,UC Sale Profit,-39163578.0
+VDF Filo,2025/06,leased_assets_net,Leased Assets - Net,16843595963.5273
+VDF Filo,2025/06,impairment,Impairment,-46295519.0
+VDF Filo,2025/06,shareholders_equity,Shareholders' Equity,13940766376.4468
+VDF Filo,2025/06,profit_before_tax,Profit Before Tax,416127041.0
+VDF Filo,2025/06,profit_after_tax,Profit After Tax,654107359.9236
+VDF Filo,2025/06,borrowings,Borrowings,2740268139.0
+VDF Filo,2025/06,interest_expense,Interest Expense,-755979705.0
+VDF Filo,2025/06,depreciation,Depreciation,1484547850.0
+VDF Filo,2025/06,operational_profit,Operational Profit,1939838469.0
+VDF Filo,2024/12,used_car_sales,Used Car Sales,12547071574.0672
+VDF Filo,2024/12,cost_of_uc_sales,Cost of UC Sales,11393627235.3792
+VDF Filo,2024/12,uc_sale_profit,UC Sale Profit,1358296053.2389884
+VDF Filo,2024/12,leased_assets_net,Leased Assets - Net,17060134249.5744
+VDF Filo,2024/12,impairment,Impairment,-1336200472.7807999
+VDF Filo,2024/12,shareholders_equity,Shareholders' Equity,12417853926.4512
+VDF Filo,2024/12,profit_before_tax,Profit Before Tax,-6618950984.6528
+VDF Filo,2024/12,profit_after_tax,Profit After Tax,-5552513956.4032
+VDF Filo,2024/12,borrowings,Borrowings,4788044827.5456
+VDF Filo,2024/12,interest_expense,Interest Expense,-4492719440.0255995
+VDF Filo,2024/12,depreciation,Depreciation,9046641539.430399
+VDF Filo,2024/12,operational_profit,Operational Profit,2867273071.4819956
+Hedef,2026/06,used_car_sales,Used Car Sales,5444728608.0
+Hedef,2026/06,cost_of_uc_sales,Cost of UC Sales,5129620098.0
+Hedef,2026/06,uc_sale_profit,UC Sale Profit,315108510.0
+Hedef,2026/06,leased_assets_net,Leased Assets - Net,17405205458.0
+Hedef,2026/06,impairment,Impairment,-752814905.0
+Hedef,2026/06,shareholders_equity,Shareholders' Equity,9386234023.0
+Hedef,2026/06,profit_before_tax,Profit Before Tax,-1902643041.0
+Hedef,2026/06,profit_after_tax,Profit After Tax,-1390473858.0
+Hedef,2026/06,borrowings,Borrowings,12860100333.0
+Hedef,2026/06,interest_expense,Interest Expense,-2795727192.0
+Hedef,2026/06,depreciation,Depreciation,1927512416.0
+Hedef,2026/06,operational_profit,Operational Profit,-290239135.0
+Hedef,2025/12,used_car_sales,Used Car Sales,13217425429.504
+Hedef,2025/12,cost_of_uc_sales,Cost of UC Sales,12557539574.8864
+Hedef,2025/12,uc_sale_profit,UC Sale Profit,777081582.3976852
+Hedef,2025/12,leased_assets_net,Leased Assets - Net,20310538920.6528
+Hedef,2025/12,impairment,Impairment,-937113126.9632
+Hedef,2025/12,shareholders_equity,Shareholders' Equity,10471413005.8752
+Hedef,2025/12,profit_before_tax,Profit Before Tax,-2428198017.9456
+Hedef,2025/12,profit_after_tax,Profit After Tax,-1139762250.5983999
+Hedef,2025/12,borrowings,Borrowings,13557715445.1968
+Hedef,2025/12,interest_expense,Interest Expense,-6044583566.6432
+Hedef,2025/12,depreciation,Depreciation,2468289339.2896
+Hedef,2025/12,operational_profit,Operational Profit,-514177564.6147924
+Hedef,2025/06,used_car_sales,Used Car Sales,7641678455.0
+Hedef,2025/06,cost_of_uc_sales,Cost of UC Sales,7277500951.0
+Hedef,2025/06,uc_sale_profit,UC Sale Profit,364177504.0
+Hedef,2025/06,leased_assets_net,Leased Assets - Net,20310275237.0
+Hedef,2025/06,impairment,Impairment,-801298305.6342
+Hedef,2025/06,shareholders_equity,Shareholders' Equity,11236972326.8902
+Hedef,2025/06,profit_before_tax,Profit Before Tax,-1608799091.0
+Hedef,2025/06,profit_after_tax,Profit After Tax,70506316.9822
+Hedef,2025/06,borrowings,Borrowings,12448475154.9994
+Hedef,2025/06,interest_expense,Interest Expense,-3150977538.0
+Hedef,2025/06,depreciation,Depreciation,1377066696.0
+Hedef,2025/06,operational_profit,Operational Profit,-595909899.0
+Hedef,2024/12,used_car_sales,Used Car Sales,21159076069.1712
+Hedef,2024/12,cost_of_uc_sales,Cost of UC Sales,19221415768.7296
+Hedef,2024/12,uc_sale_profit,UC Sale Profit,2281788769.8000293
+Hedef,2024/12,leased_assets_net,Leased Assets - Net,23815025483.4688
+Hedef,2024/12,impairment,Impairment,-1124983314.0736
+Hedef,2024/12,shareholders_equity,Shareholders' Equity,12030593415.2704
+Hedef,2024/12,profit_before_tax,Profit Before Tax,-2961480840.8064
+Hedef,2024/12,profit_after_tax,Profit After Tax,-2045882003.0464
+Hedef,2024/12,borrowings,Borrowings,13233667503.4112
+Hedef,2024/12,interest_expense,Interest Expense,-5707927463.2192
+Hedef,2024/12,depreciation,Depreciation,2662177023.5392
+Hedef,2024/12,operational_profit,Operational Profit,-2959939561.6600327
+Garanti,2026/06,used_car_sales,Used Car Sales,4912062862.0
+Garanti,2026/06,cost_of_uc_sales,Cost of UC Sales,5305858208.0
+Garanti,2026/06,uc_sale_profit,UC Sale Profit,-393795346.0
+Garanti,2026/06,leased_assets_net,Leased Assets - Net,45898734922.0
+Garanti,2026/06,impairment,Impairment,116951060.0
+Garanti,2026/06,shareholders_equity,Shareholders' Equity,25422895016.0
+Garanti,2026/06,profit_before_tax,Profit Before Tax,-1039176907.0
+Garanti,2026/06,profit_after_tax,Profit After Tax,-1401112088.0
+Garanti,2026/06,borrowings,Borrowings,18364428977.0
+Garanti,2026/06,interest_expense,Interest Expense,3322436658.0
+Garanti,2026/06,depreciation,Depreciation,4923315428.0
+Garanti,2026/06,operational_profit,Operational Profit,4277933867.0
+Garanti,2025/12,used_car_sales,Used Car Sales,10582152960.1536
+Garanti,2025/12,cost_of_uc_sales,Cost of UC Sales,10528988753.8176
+Garanti,2025/12,uc_sale_profit,UC Sale Profit,62606169.38127412
+Garanti,2025/12,leased_assets_net,Leased Assets - Net,47871607222.0672
+Garanti,2025/12,impairment,Impairment,-352832318.6908365
+Garanti,2025/12,shareholders_equity,Shareholders' Equity,26867522154.496
+Garanti,2025/12,profit_before_tax,Profit Before Tax,-3554660053.7599998
+Garanti,2025/12,profit_after_tax,Profit After Tax,-2121764487.424
+Garanti,2025/12,borrowings,Borrowings,18735523450.0608
+Garanti,2025/12,interest_expense,Interest Expense,-10393318232.6784
+Garanti,2025/12,depreciation,Depreciation,9518758778.4704
+Garanti,2025/12,operational_profit,Operational Profit,8927274032.64907
+Garanti,2025/06,used_car_sales,Used Car Sales,6875252991.0
+Garanti,2025/06,cost_of_uc_sales,Cost of UC Sales,6087280713.0624
+Garanti,2025/06,uc_sale_profit,UC Sale Profit,787972277.9376001
+Garanti,2025/06,leased_assets_net,Leased Assets - Net,42340331769.1904
+Garanti,2025/06,impairment,Impairment,825888656.2304
+Garanti,2025/06,shareholders_equity,Shareholders' Equity,24378812775.4752
+Garanti,2025/06,profit_before_tax,Profit Before Tax,2132826411.0
+Garanti,2025/06,profit_after_tax,Profit After Tax,1499252894.1568
+Garanti,2025/06,borrowings,Borrowings,4010000000.0
+Garanti,2025/06,interest_expense,Interest Expense,6184378318.0
+Garanti,2025/06,depreciation,Depreciation,5647671766.0
+Garanti,2025/06,operational_profit,Operational Profit,6992525899.0624
+Garanti,2024/12,used_car_sales,Used Car Sales,10762815872.5632
+Garanti,2024/12,cost_of_uc_sales,Cost of UC Sales,11213675660.4928
+Garanti,2024/12,uc_sale_profit,UC Sale Profit,-530932486.2658967
+Garanti,2024/12,leased_assets_net,Leased Assets - Net,50683522119.6288
+Garanti,2024/12,impairment,Impairment,-926549808.8448
+Garanti,2024/12,shareholders_equity,Shareholders' Equity,23693013211.0848
+Garanti,2024/12,profit_before_tax,Profit Before Tax,-4598603949.312
+Garanti,2024/12,profit_after_tax,Profit After Tax,-3335664443.136
+Garanti,2024/12,borrowings,Borrowings,25982615344.5888
+Garanti,2024/12,interest_expense,Interest Expense,-11183817849.1904
+Garanti,2024/12,depreciation,Depreciation,7474803004.0064
+Garanti,2024/12,operational_profit,Operational Profit,5686571713.164855
+TEB Arval,2025/12,used_car_sales,Used Car Sales,6421492972.6463995
+TEB Arval,2025/12,cost_of_uc_sales,Cost of UC Sales,5795653751.4496
+TEB Arval,2025/12,uc_sale_profit,UC Sale Profit,736988266.8813509
+TEB Arval,2025/12,leased_assets_net,Leased Assets - Net,34823126140.0576
+TEB Arval,2025/12,shareholders_equity,Shareholders' Equity,23173855437.619198
+TEB Arval,2025/12,profit_before_tax,Profit Before Tax,1986965124.1471999
+TEB Arval,2025/12,profit_after_tax,Profit After Tax,1164829150.5664
+TEB Arval,2025/12,borrowings,Borrowings,11902131988.223999
+TEB Arval,2025/12,interest_expense,Interest Expense,4793720050.5344
+TEB Arval,2025/12,depreciation,Depreciation,2714718811.7504
+TEB Arval,2025/12,operational_profit,Operational Profit,5082451666.793207
+TEB Arval,2024/12,used_car_sales,Used Car Sales,6755689493.6064
+TEB Arval,2024/12,cost_of_uc_sales,Cost of UC Sales,4933630177.792
+TEB Arval,2024/12,uc_sale_profit,UC Sale Profit,2145657050.3030372
+TEB Arval,2024/12,leased_assets_net,Leased Assets - Net,35443847937.9456
+TEB Arval,2024/12,shareholders_equity,Shareholders' Equity,22168998504.8576
+TEB Arval,2024/12,profit_before_tax,Profit Before Tax,2975911483.2896
+TEB Arval,2024/12,profit_after_tax,Profit After Tax,2826265823.5903997
+TEB Arval,2024/12,borrowings,Borrowings,12149239860.736
+TEB Arval,2024/12,interest_expense,Interest Expense,4635882668.4416
+TEB Arval,2024/12,depreciation,Depreciation,2214099088.3328
+TEB Arval,2024/12,operational_profit,Operational Profit,3599344794.997213
