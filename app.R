@@ -13,13 +13,11 @@ library(rvest)
 library(stringr)
 library(purrr)
 
-
 finance <- readr::read_csv("data/finance/master_financial_data.csv", show_col_types = FALSE)
 fleet <- readr::read_csv("data/fleet/fleet_master.csv", show_col_types = FALSE)
 fleet_employees <- readr::read_csv("data/fleet/employees.csv", show_col_types = FALSE)
 
 factoring_path <- "data/factoring/factoring_master.csv"
-
 factoring_metric_catalog <- tibble::tribble(
   ~metric_id,                         ~group,           ~display_name,                                ~pattern,
   "total_assets",                     "Genel",          "Toplam Aktif",                               "^(VARLIKLAR TOPLAMI|VARLIK TOPLAMI|TOPLAM AKTIF)$",
@@ -328,7 +326,7 @@ factoring_data_problem <- if (
   !factoring_loaded
 ) {
   paste0(
-    "Factoring CSV okundu ama yapısı otomatik eşleştirilemedi. ",
+    "Faktoring CSV okundu ama yapısı otomatik eşleştirilemedi. ",
     "Bulunan sütunlar: ",
     paste(names(factoring_raw), collapse = ", ")
   )
@@ -507,7 +505,9 @@ fac_plot_company_detail <- function(
     dplyr::group_by(.data$metric_id) |>
     dplyr::slice(1) |>
     dplyr::ungroup() |>
-    dplyr::mutate(plot_value = abs(.data$value)) |>
+    dplyr::mutate(
+      plot_value = abs(.data$value)
+    ) |>
     dplyr::arrange(.data$plot_value)
   
   shiny::validate(
@@ -580,7 +580,7 @@ fac_comparison_ui <- function(prefix, title, group_value, default_metric) {
           selected = "VDF"
         ),
         shiny::helpText(
-          "Üst grafikte bir şirkete tıklarsan detay şirketi değişir. Alt soldaki bir kaleme tıklarsan sağdaki karşılaştırma o kaleme geçer."
+          "Üst grafikte bir şirkete tıklarsan aşağıdaki şirket detayı otomatik değişir."
         )
       ),
       bslib::card(
@@ -589,18 +589,11 @@ fac_comparison_ui <- function(prefix, title, group_value, default_metric) {
         bslib::card_header(paste0("2026/06 ", title, " Karşılaştırması")),
         plotly::plotlyOutput(paste0("fac_", prefix, "_top"), height = "380px")
       ),
-      bslib::layout_columns(
-        col_widths = c(6, 6),
-        bslib::card(
-          class = "metric-card",
-          full_screen = TRUE,
-          plotly::plotlyOutput(paste0("fac_", prefix, "_detail"), height = "410px")
-        ),
-        bslib::card(
-          class = "metric-card",
-          full_screen = TRUE,
-          plotly::plotlyOutput(paste0("fac_", prefix, "_right"), height = "410px")
-        )
+      bslib::card(
+        class = "metric-card",
+        full_screen = TRUE,
+        bslib::card_header("Seçili Şirket Detayı"),
+        plotly::plotlyOutput(paste0("fac_", prefix, "_detail"), height = "410px")
       )
     )
   )
@@ -617,13 +610,35 @@ finance_metrics <- c(
   "Net Faaliyet Kârı (Zararı)"
 )
 
+fleet_metric_tr <- c(
+  "Used Car Sales" = "İkinci El Araç Satışları",
+  "Cost of UC Sales" = "İkinci El Araç Satış Maliyeti",
+  "UC Sale Profit" = "İkinci El Araç Satış Kârı",
+  "Leased Assets - Net" = "Kiralanan Varlıklar - Net",
+  "Impairment" = "Değer Düşüklüğü",
+  "Shareholders' Equity" = "Özkaynaklar",
+  "Profit Before Tax" = "Vergi Öncesi Kâr",
+  "Profit After Tax" = "Vergi Sonrası Kâr",
+  "Borrowings" = "Borçlanmalar",
+  "Interest Expense" = "Faiz Gideri",
+  "Depreciation" = "Amortisman",
+  "Operational Profit" = "Faaliyet Kârı"
+)
+
+fleet_metric_label <- function(x) {
+  out <- unname(fleet_metric_tr[as.character(x)])
+  out[is.na(out)] <- as.character(x)[is.na(out)]
+  out
+}
+
 fleet_metric_lookup <- fleet |>
   distinct(metric_id, metric) |>
-  arrange(metric)
+  arrange(metric) |>
+  mutate(metric_label = fleet_metric_label(metric))
 
 fleet_metric_choices <- stats::setNames(
   fleet_metric_lookup$metric_id,
-  fleet_metric_lookup$metric
+  fleet_metric_lookup$metric_label
 )
 
 finance_company_colors <- c(
@@ -677,11 +692,11 @@ finance_wide <- finance |>
   )
 
 ratio_labels <- c(
-  equity_ratio = "Equity Ratio",
-  funding_to_assets = "Funding / Assets",
-  gross_margin = "Gross Margin",
-  operating_margin = "Operating Margin",
-  financing_cost_ratio = "Financing Cost / Revenue"
+  equity_ratio = "Özkaynak Oranı",
+  funding_to_assets = "Fonlama / Varlık",
+  gross_margin = "Brüt Kâr Marjı",
+  operating_margin = "Net Faaliyet Kâr Marjı",
+  financing_cost_ratio = "Finansman Gideri / Gelir"
 )
 
 pnl_map <- c(
@@ -726,12 +741,413 @@ extract_expenses <- function(file_path, company_name) {
   })
 }
 
-pnl_files <- list.files("data/finance/pnl", pattern = "\\.xls$", full.names = TRUE)
-
-finance_expenses <- map_dfr(pnl_files, function(f) {
-  nm <- pnl_map[[basename(f)]]
-  extract_expenses(f, nm)
+get_finance_expenses <- local({
+  cache <- NULL
+  
+  function() {
+    if (!is.null(cache)) return(cache)
+    
+    pnl_files <- list.files("data/finance/pnl", pattern = "\\.xls$", full.names = TRUE)
+    cache <<- purrr::map_dfr(pnl_files, function(f) {
+      nm <- pnl_map[[basename(f)]]
+      extract_expenses(f, nm)
+    })
+    
+    cache
+  }
 })
+
+
+finance_companies <- sort(unique(finance$company))
+
+fin_metric_choices_all <- stats::setNames(
+  finance_metrics,
+  finance_metrics
+)
+
+fin_structure_metrics <- c(
+  "Varlıklar Toplamı",
+  "Özkaynaklar",
+  "Alınan Krediler",
+  "İhraç Edilen Menkul Kıymetler (Net)"
+)
+fin_structure_metrics <- fin_structure_metrics[
+  fin_structure_metrics %in% unique(finance$item)
+]
+
+fin_profit_metrics <- c(
+  "Esas Faaliyet Gelirleri",
+  "Finansman Giderleri",
+  "Brüt Kâr (Zarar)",
+  "Net Faaliyet Kârı (Zararı)"
+)
+fin_profit_metrics <- fin_profit_metrics[
+  fin_profit_metrics %in% unique(finance$item)
+]
+
+fin_plot_company_comparison <- function(
+    metric_value,
+    period_value = "2026/06",
+    highlight_company = NULL,
+    source_id = NULL
+) {
+  d <- finance |>
+    dplyr::filter(
+      .data$period == .env$period_value,
+      .data$item == .env$metric_value
+    ) |>
+    dplyr::group_by(.data$company) |>
+    dplyr::slice(1) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      is_highlight = !is.null(highlight_company) &
+        .data$company == highlight_company
+    ) |>
+    dplyr::arrange(.data$value_mn_tl)
+  
+  shiny::validate(
+    shiny::need(nrow(d) > 0, "Bu kalem için veri bulunamadı.")
+  )
+  
+  p <- ggplot2::ggplot(
+    d,
+    ggplot2::aes(
+      x = stats::reorder(.data$company, .data$value_mn_tl),
+      y = .data$value_mn_tl,
+      fill = .data$is_highlight,
+      key = .data$company,
+      text = paste0(
+        "<b>", .data$company, "</b><br>",
+        metric_value, ": ", fmt_mn(.data$value_mn_tl)
+      )
+    )
+  ) +
+    ggplot2::geom_col(width = .56) +
+    ggplot2::scale_fill_manual(
+      values = c("TRUE" = "#25C7C9", "FALSE" = "#65858A"),
+      guide = "none"
+    ) +
+    ggplot2::coord_flip() +
+    ggplot2::scale_y_continuous(
+      labels = function(x) {
+        ifelse(
+          abs(x) >= 1000,
+          paste0(format(round(x / 1000, 1), decimal.mark = ","), " Mlr"),
+          paste0(format(round(x, 0), decimal.mark = ","), " Mn")
+        )
+      }
+    ) +
+    ggplot2::labs(
+      x = NULL,
+      y = NULL,
+      title = paste0(metric_value, " | ", period_value)
+    ) +
+    ggplot2::theme_minimal(base_size = 13) +
+    ggplot2::theme(
+      panel.grid.major.y = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank(),
+      plot.title = ggplot2::element_text(face = "bold")
+    )
+  
+  w <- plotly::ggplotly(p, tooltip = "text", source = source_id)
+  if (!is.null(source_id)) w <- plotly::event_register(w, "plotly_click")
+  w |> plotly::config(displayModeBar = FALSE)
+}
+
+fin_plot_company_detail <- function(
+    company_value,
+    metrics,
+    period_value = "2026/06",
+    source_id = NULL
+) {
+  d <- finance |>
+    dplyr::filter(
+      .data$company == .env$company_value,
+      .data$period == .env$period_value,
+      .data$item %in% .env$metrics
+    ) |>
+    dplyr::mutate(plot_value = abs(.data$value_mn_tl)) |>
+    dplyr::arrange(.data$plot_value)
+  
+  shiny::validate(
+    shiny::need(nrow(d) > 0, "Bu şirket için detay verisi bulunamadı.")
+  )
+  
+  p <- ggplot2::ggplot(
+    d,
+    ggplot2::aes(
+      x = stats::reorder(.data$item, .data$plot_value),
+      y = .data$plot_value,
+      key = .data$item,
+      text = paste0(
+        "<b>", .data$item, "</b><br>",
+        fmt_mn(.data$value_mn_tl)
+      )
+    )
+  ) +
+    ggplot2::geom_col(width = .56, fill = "#63C9C8") +
+    ggplot2::coord_flip() +
+    ggplot2::scale_y_continuous(
+      labels = function(x) {
+        ifelse(
+          abs(x) >= 1000,
+          paste0(format(round(x / 1000, 1), decimal.mark = ","), " Mlr"),
+          paste0(format(round(x, 0), decimal.mark = ","), " Mn")
+        )
+      }
+    ) +
+    ggplot2::labs(
+      x = NULL, y = NULL,
+      title = paste0(company_value, " | Detay")
+    ) +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(
+      panel.grid.major.y = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank(),
+      plot.title = ggplot2::element_text(face = "bold")
+    )
+  
+  w <- plotly::ggplotly(p, tooltip = "text", source = source_id)
+  if (!is.null(source_id)) w <- plotly::event_register(w, "plotly_click")
+  w |> plotly::config(displayModeBar = FALSE)
+}
+
+finance_comparison_ui <- function(prefix, title, metrics, default_metric) {
+  bslib::nav_panel(
+    title,
+    bslib::layout_sidebar(
+      sidebar = bslib::sidebar(
+        shiny::selectInput(
+          paste0("fin_", prefix, "_metric"),
+          "Karşılaştırma kalemi",
+          choices = stats::setNames(metrics, metrics),
+          selected = default_metric
+        ),
+        shiny::selectInput(
+          paste0("fin_", prefix, "_company"),
+          "Detay şirketi",
+          choices = finance_companies,
+          selected = "VDF"
+        ),
+        shiny::helpText(
+          "Üst grafikte bir şirkete tıklarsan aşağıdaki şirket detayı otomatik değişir."
+        )
+      ),
+      bslib::card(
+        class = "metric-card",
+        full_screen = TRUE,
+        bslib::card_header(paste0("2026/06 ", title, " Karşılaştırması")),
+        plotly::plotlyOutput(paste0("fin_", prefix, "_top"), height = "380px")
+      ),
+      bslib::card(
+        class = "metric-card",
+        full_screen = TRUE,
+        bslib::card_header("Seçili Şirket Detayı"),
+        plotly::plotlyOutput(paste0("fin_", prefix, "_detail"), height = "410px")
+      )
+    )
+  )
+}
+
+fleet_companies <- sort(unique(fleet$company))
+
+fleet_choices_by_pattern <- function(pattern) {
+  d <- fleet |>
+    dplyr::distinct(.data$metric_id, .data$metric) |>
+    dplyr::filter(
+      stringr::str_detect(
+        stringr::str_to_lower(.data$metric),
+        stringr::regex(pattern, ignore_case = TRUE)
+      )
+    )
+  
+  if (nrow(d) == 0) {
+    d <- fleet |>
+      dplyr::distinct(.data$metric_id, .data$metric)
+  }
+  
+  stats::setNames(d$metric_id, fleet_metric_label(d$metric))
+}
+
+fleet_asset_choices <- fleet_choices_by_pattern(
+  "aktif|varlık|kirala|lease|araç|arac|used|uc|filo"
+)
+
+fleet_performance_choices <- fleet_choices_by_pattern(
+  "kâr|kar|profit|gelir|revenue|income|özkaynak|ozkaynak|borç|borc|loan|fund|finans"
+)
+
+fleet_plot_company_comparison <- function(
+    metric_id_value,
+    period_value = "2026/06",
+    highlight_company = NULL,
+    source_id = NULL
+) {
+  d <- fleet |>
+    dplyr::filter(
+      .data$period == .env$period_value,
+      .data$metric_id == .env$metric_id_value
+    ) |>
+    dplyr::group_by(.data$company) |>
+    dplyr::slice(1) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      is_highlight = !is.null(highlight_company) &
+        .data$company == highlight_company
+    ) |>
+    dplyr::arrange(.data$value)
+  
+  shiny::validate(
+    shiny::need(nrow(d) > 0, "Bu kalem için veri bulunamadı.")
+  )
+  
+  metric_title <- fleet |>
+    dplyr::filter(.data$metric_id == .env$metric_id_value) |>
+    dplyr::pull(.data$metric) |>
+    unique()
+  metric_title <- if (length(metric_title)) fleet_metric_label(metric_title[[1]]) else metric_id_value
+  
+  p <- ggplot2::ggplot(
+    d,
+    ggplot2::aes(
+      x = stats::reorder(.data$company, .data$value),
+      y = .data$value,
+      fill = .data$is_highlight,
+      key = .data$company,
+      text = paste0(
+        "<b>", .data$company, "</b><br>",
+        metric_title, ": ", fmt_tl(.data$value)
+      )
+    )
+  ) +
+    ggplot2::geom_col(width = .56) +
+    ggplot2::scale_fill_manual(
+      values = c("TRUE" = "#25C7C9", "FALSE" = "#65858A"),
+      guide = "none"
+    ) +
+    ggplot2::coord_flip() +
+    ggplot2::scale_y_continuous(
+      labels = function(x) {
+        ifelse(
+          abs(x) >= 1e9,
+          paste0(format(round(x / 1e9, 1), decimal.mark = ","), " Mlr"),
+          paste0(format(round(x / 1e6, 0), decimal.mark = ","), " Mn")
+        )
+      }
+    ) +
+    ggplot2::labs(
+      x = NULL, y = NULL,
+      title = paste0(metric_title, " | ", period_value)
+    ) +
+    ggplot2::theme_minimal(base_size = 13) +
+    ggplot2::theme(
+      panel.grid.major.y = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank(),
+      plot.title = ggplot2::element_text(face = "bold")
+    )
+  
+  w <- plotly::ggplotly(p, tooltip = "text", source = source_id)
+  if (!is.null(source_id)) w <- plotly::event_register(w, "plotly_click")
+  w |> plotly::config(displayModeBar = FALSE)
+}
+
+fleet_plot_company_detail <- function(
+    company_value,
+    metric_choices,
+    period_value = "2026/06",
+    source_id = NULL
+) {
+  ids <- unname(metric_choices)
+  
+  d <- fleet |>
+    dplyr::filter(
+      .data$company == .env$company_value,
+      .data$period == .env$period_value,
+      .data$metric_id %in% .env$ids
+    ) |>
+    dplyr::group_by(.data$metric_id) |>
+    dplyr::slice(1) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      plot_value = abs(.data$value),
+      metric_label = fleet_metric_label(.data$metric)
+    ) |>
+    dplyr::arrange(.data$plot_value)
+  
+  shiny::validate(
+    shiny::need(nrow(d) > 0, "Bu şirket için detay verisi bulunamadı.")
+  )
+  
+  p <- ggplot2::ggplot(
+    d,
+    ggplot2::aes(
+      x = stats::reorder(.data$metric_label, .data$plot_value),
+      y = .data$plot_value,
+      key = .data$metric_id,
+      text = paste0(
+        "<b>", .data$metric_label, "</b><br>",
+        fmt_tl(.data$value)
+      )
+    )
+  ) +
+    ggplot2::geom_col(width = .56, fill = "#63C9C8") +
+    ggplot2::coord_flip() +
+    ggplot2::labs(
+      x = NULL, y = NULL,
+      title = paste0(company_value, " | Detay")
+    ) +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(
+      panel.grid.major.y = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank(),
+      plot.title = ggplot2::element_text(face = "bold")
+    )
+  
+  w <- plotly::ggplotly(p, tooltip = "text", source = source_id)
+  if (!is.null(source_id)) w <- plotly::event_register(w, "plotly_click")
+  w |> plotly::config(displayModeBar = FALSE)
+}
+
+fleet_comparison_ui <- function(prefix, title, choices, default_metric) {
+  bslib::nav_panel(
+    title,
+    bslib::layout_sidebar(
+      sidebar = bslib::sidebar(
+        shiny::selectInput(
+          paste0("fleet_", prefix, "_metric"),
+          "Karşılaştırma kalemi",
+          choices = choices,
+          selected = if (default_metric %in% unname(choices)) {
+            default_metric
+          } else {
+            unname(choices)[1]
+          }
+        ),
+        shiny::selectInput(
+          paste0("fleet_", prefix, "_company"),
+          "Detay şirketi",
+          choices = fleet_companies,
+          selected = if ("VDF Filo" %in% fleet_companies) "VDF Filo" else fleet_companies[1]
+        ),
+        shiny::helpText(
+          "Üst grafikte bir şirkete tıklarsan aşağıdaki şirket detayı otomatik değişir."
+        )
+      ),
+      bslib::card(
+        class = "metric-card",
+        full_screen = TRUE,
+        bslib::card_header(paste0("2026/06 ", title, " Karşılaştırması")),
+        plotly::plotlyOutput(paste0("fleet_", prefix, "_top"), height = "380px")
+      ),
+      bslib::card(
+        class = "metric-card",
+        full_screen = TRUE,
+        bslib::card_header("Seçili Şirket Detayı"),
+        plotly::plotlyOutput(paste0("fleet_", prefix, "_detail"), height = "410px")
+      )
+    )
+  )
+}
 
 
 theme_hub <- bs_theme(
@@ -758,6 +1174,87 @@ html, body {
     radial-gradient(circle at 78% 18%, rgba(37,199,201,.18), transparent 30%),
     radial-gradient(circle at 12% 82%, rgba(126,230,223,.10), transparent 28%),
     linear-gradient(135deg,#071418 0%,#0A1D22 50%,#081317 100%);
+}
+
+/* HAREKETLİ LAVA ARKA PLAN */
+.lava-background {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.lava-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(35px);
+  opacity: .55;
+  will-change: transform, border-radius;
+}
+
+.lava-1 {
+  width: 420px;
+  height: 520px;
+  left: -80px;
+  top: 20%;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(81,255,190,.55), rgba(20,180,155,.22) 55%, transparent 75%);
+  animation: lava1 13s ease-in-out infinite alternate;
+}
+
+.lava-2 {
+  width: 520px;
+  height: 430px;
+  right: -100px;
+  top: -80px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(36,220,190,.55), rgba(17,135,140,.25) 58%, transparent 76%);
+  animation: lava2 17s ease-in-out infinite alternate;
+}
+
+.lava-3 {
+  width: 380px;
+  height: 460px;
+  left: 38%;
+  bottom: -250px;
+  background:
+    radial-gradient(circle, rgba(59,235,180,.42), rgba(16,145,130,.20) 55%, transparent 75%);
+  animation: lava3 15s ease-in-out infinite alternate;
+}
+
+.lava-4 {
+  width: 300px;
+  height: 360px;
+  right: 22%;
+  top: 42%;
+  background:
+    radial-gradient(circle, rgba(75,255,210,.35), rgba(18,150,150,.15) 55%, transparent 75%);
+  animation: lava4 11s ease-in-out infinite alternate;
+}
+
+@keyframes lava1 {
+  0% { transform: translate(0,0) rotate(0deg) scale(1); border-radius: 48% 52% 63% 37% / 42% 38% 62% 58%; }
+  50% { transform: translate(180px,-90px) rotate(45deg) scale(1.25); border-radius: 65% 35% 42% 58% / 55% 63% 37% 45%; }
+  100% { transform: translate(80px,180px) rotate(90deg) scale(.9); border-radius: 38% 62% 58% 42% / 62% 38% 57% 43%; }
+}
+
+@keyframes lava2 {
+  0% { transform: translate(0,0) rotate(0deg) scale(1); border-radius: 62% 38% 47% 53% / 38% 58% 42% 62%; }
+  50% { transform: translate(-220px,130px) rotate(-55deg) scale(.85); border-radius: 42% 58% 65% 35% / 60% 35% 65% 40%; }
+  100% { transform: translate(-80px,300px) rotate(-100deg) scale(1.2); border-radius: 55% 45% 35% 65% / 43% 63% 37% 57%; }
+}
+
+@keyframes lava3 {
+  0% { transform: translate(0,0) rotate(0deg) scale(.8); }
+  50% { transform: translate(-180px,-260px) rotate(70deg) scale(1.3); }
+  100% { transform: translate(230px,-380px) rotate(140deg) scale(1); }
+}
+
+@keyframes lava4 {
+  0% { transform: translate(0,0) scale(.8); }
+  50% { transform: translate(-180px,100px) scale(1.35); }
+  100% { transform: translate(100px,-180px) scale(.9); }
 }
 
 .hub-shell::before {
@@ -812,10 +1309,18 @@ html, body {
 .hero-wrap {
   position: relative;
   z-index: 2;
-  max-width: 1080px;
+  max-width: 1280px;
   margin: 0 auto;
 }
 
+.hero-subtitle {
+  font-size: 17px;
+  color: rgba(220, 240, 240, 0.60);
+  margin-top: 10px;
+  margin-bottom: 32px;
+  max-width: 700px;
+  line-height: 1.6;
+}
 .eyebrow {
   color: #60D7D5;
   text-transform: uppercase;
@@ -847,17 +1352,22 @@ html, body {
 
 .sector-grid {
   display: grid;
-  grid-template-columns: repeat(3,1fr);
-  gap: 18px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
 }
 
 .sector-card {
   position: relative;
-  min-height: 260px;
+  cursor: pointer;
+  min-height: 340px;
   border: 1px solid rgba(126,230,223,.14);
-  border-radius: 22px;
-  padding: 24px;
-  background: linear-gradient(180deg,rgba(255,255,255,.052),rgba(255,255,255,.022));
+  border-radius: 24px;
+  padding: 32px;
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,.052),
+    rgba(255,255,255,.022)
+  );
   transition: .2s ease;
   overflow: hidden;
 }
@@ -909,14 +1419,6 @@ html, body {
   letter-spacing: .04em;
 }
 
-.sector-card .action-button {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-}
 
 .hub-footer {
   position: relative;
@@ -970,7 +1472,6 @@ html, body {
   background: rgba(37,199,201,.10) !important;
 }
 
-/* SIDEBAR */
 .analysis-shell .sidebar {
   background: #09191E !important;
   color: #CFE7E5 !important;
@@ -1007,7 +1508,6 @@ html, body {
   color: #739895 !important;
 }
 
-/* MAIN TAB CONTAINER - THIS WAS THE WHITE AREA */
 .analysis-shell .navset-card-tab,
 .analysis-shell .card:has(> .card-header > .nav-tabs) {
   background: #0A1C21 !important;
@@ -1028,7 +1528,6 @@ html, body {
   color: #DDF3F1 !important;
 }
 
-/* TABS */
 .analysis-shell .nav-tabs {
   border-bottom: 1px solid rgba(126,230,223,.10) !important;
 }
@@ -1075,7 +1574,6 @@ html, body {
   margin-top: 6px;
 }
 
-
 .metric-card {
   border: 1px solid rgba(126,230,223,.14) !important;
   border-radius: 18px !important;
@@ -1118,6 +1616,7 @@ html, body {
   background: #0D2025;
 }
 
+/* TABLE */
 .analysis-shell .dataTables_wrapper {
   color: #CFE7E5 !important;
 }
@@ -1160,50 +1659,99 @@ html, body {
 "
 
 sector_card <- function(index, icon, title, copy, meta, input_id) {
+  target_value <- dplyr::recode(
+    input_id,
+    "go_finance" = "finance",
+    "go_factoring" = "factoring",
+    "go_fleet" = "fleet"
+  )
+  
   div(
     class = "sector-card",
+    role = "button",
+    tabindex = "0",
+    onclick = sprintf(
+      "var el=document.querySelector('#main_view [data-value=\"%s\"]'); if(el){el.click();}",
+      target_value
+    ),
+    onkeydown = sprintf(
+      "if(event.key==='Enter'||event.key===' '){event.preventDefault(); var el=document.querySelector('#main_view [data-value=\"%s\"]'); if(el){el.click();}}",
+      target_value
+    ),
     div(class = "sector-index", index),
     div(class = "sector-icon", bs_icon(icon, size = "24px")),
     div(class = "sector-title", title),
     div(class = "sector-copy", copy),
-    div(class = "sector-meta", meta),
-    actionButton(input_id, "", class = "action-button")
+    div(class = "sector-meta", meta)
   )
 }
 
 landing_ui <- div(
   class = "hub-shell",
+  
+  div(
+    class = "lava-background",
+    div(class = "lava-blob lava-1"),
+    div(class = "lava-blob lava-2"),
+    div(class = "lava-blob lava-3"),
+    div(class = "lava-blob lava-4")
+  ),
+  
   div(
     class = "hub-topline",
-    div(class = "hub-period", "Finance • Factoring • Fleet")
+    div(class = "hub-period", "Finans • Faktoring • Filo")
   ),
+  
   div(
     class = "hero-wrap",
-    div(class = "hero-title", HTML("One view.<br><span class='accent'>Three financial lenses.</span>")),
-    div(class = "hero-subtitle",
-        "A unified analytics environment for financing, factoring and fleet-leasing peer analysis."),
+    
+    div(
+      class = "hero-title",
+      HTML("Üç finansal bakış.")
+    ),
+    
+    div(
+      class = "hero-subtitle",
+      "Finansal performansı, sektörel karşılaştırmaları ve dönemsel değişimleri tek bakışta keşfetmek."
+    ),
+    
     div(
       class = "sector-grid",
+      
       sector_card(
-        "01 / FINANCE", "bank", "Finance",
-        "Financial position, profitability, funding structure, benchmark scorecards and operating-expense analysis.",
-        "2023/12 • 2024/12 • 2025/12 • 2026/06", "go_finance"
+        "01 / FİNANS",
+        "bank",
+        "Finans",
+        "Finansal yapı, kârlılık, fonlama, dönemsel değişim ve faaliyet gideri karşılaştırmaları.",
+        "2023/12 • 2024/12 • 2025/12 • 2026/06",
+        "go_finance"
       ),
+      
       sector_card(
-        "02 / FACTORING", "diagram-3", "Factoring",
-        "Company comparison, balance-sheet metrics, trend analysis and employee productivity across factoring peers.",
-        "Existing live peer-analysis dashboard", "go_factoring"
+        "02 / FAKTORİNG",
+        "diagram-3",
+        "Faktoring",
+        "Faktoring şirketleri için faaliyet, fonlama, kârlılık, verimlilik ve dönemsel değişim analizi.",
+        "Emsal şirket karşılaştırma analizi",
+        "go_factoring"
       ),
+      
       sector_card(
-        "03 / FLEET", "car-front", "Fleet",
-        "Fleet-leasing peer comparison with leased assets, profitability, funding, used-car metrics and productivity.",
-        "2024/12 • 2025/06 • 2025/12 • 2026/06", "go_fleet"
+        "03 / FİLO",
+        "car-front",
+        "Filo",
+        "Filo kiralama şirketleri için varlık, performans, dönemsel değişim ve çalışan verimliliği analizi.",
+        "2024/12 • 2025/06 • 2025/12 • 2026/06",
+        "go_fleet"
       )
     )
   ),
-  div(class = "hub-footer", span("R + Shiny"))
+  
+  div(
+    class = "hub-footer",
+    span("R + Shiny")
+  )
 )
-
 analysis_header <- function(title, subtitle, back_id) {
   div(
     class = "analysis-header",
@@ -1211,72 +1759,190 @@ analysis_header <- function(title, subtitle, back_id) {
       div(class = "analysis-title", title),
       div(class = "analysis-sub", subtitle)
     ),
-    actionButton(back_id, "← Hub", class = "btn btn-outline-secondary home-btn")
+    actionButton(
+      back_id,
+      "← Ana Sayfa",
+      class = "btn btn-outline-secondary home-btn",
+      onclick = "var el=document.querySelector('#main_view [data-value=\"home\"]'); if(el){el.click();}"
+    )
   )
 }
 
 finance_ui <- div(
   class = "analysis-shell",
-  analysis_header("Finance Analytics", "Financing companies peer analysis", "finance_home"),
-  page_sidebar(
-    fillable = TRUE,
-    sidebar = sidebar(
-      width = 255,
-      selectInput("fin_period", "Period",
-                  choices = sort(unique(finance$period), decreasing = TRUE),
-                  selected = "2026/06"),
-      selectInput("fin_metric", "Metric",
-                  choices = finance_metrics,
-                  selected = "Varlıklar Toplamı"),
-      hr(),
-      div(class = "small text-muted",
-          "Financial statement values are shown in Mn TL / Bn TL format.")
-    ),
-    navset_card_tab(
-      nav_panel(
-        "Overview",
-        layout_column_wrap(
-          width = 1/3,
-          div(class = "kpi-box",
-              div(class = "kpi-label", "Companies"),
-              div(class = "kpi-value", textOutput("fin_kpi_companies"))),
-          div(class = "kpi-box",
-              div(class = "kpi-label", "Leader"),
-              div(class = "kpi-value", textOutput("fin_kpi_leader")),
-              div(class = "kpi-note", textOutput("fin_kpi_metric"))),
-          div(class = "kpi-box",
-              div(class = "kpi-label", "VDF Position"),
-              div(class = "kpi-value", textOutput("fin_kpi_vdf")))
+  analysis_header(
+    "Finans Emsal Analizi",
+    "Finansman şirketleri karşılaştırmalı analizi",
+    "finance_home"
+  ),
+  
+  bslib::navset_card_tab(
+    
+    bslib::nav_panel(
+      "Genel Bakış",
+      bslib::layout_sidebar(
+        sidebar = bslib::sidebar(
+          shiny::selectInput(
+            "fin_overview_company",
+            "Şirket",
+            choices = finance_companies,
+            selected = "VDF"
+          ),
+          shiny::selectInput(
+            "fin_overview_metric",
+            "Karşılaştırma kalemi",
+            choices = fin_metric_choices_all,
+            selected = "Varlıklar Toplamı"
+          ),
+          shiny::selectInput(
+            "fin_overview_period",
+            "Dönem",
+            choices = sort(unique(finance$period), decreasing = TRUE),
+            selected = "2026/06"
+          )
         ),
-        card(class = "metric-card",
-             card_header("Peer Snapshot"),
-             plotlyOutput("fin_overview_plot", height = 430))
-      ),
-      nav_panel(
-        "Trends",
-        card(class = "metric-card",
-             card_header("Metric Trend"),
-             plotlyOutput("fin_trend_plot", height = 500))
-      ),
-      nav_panel(
-        "Ratios",
-        card(class = "metric-card",
-             card_header("2026/06 Ratio Benchmark"),
-             plotlyOutput("fin_ratio_plot", height = 520))
-      ),
-      nav_panel(
-        "Expenses",
-        div(class = "note-strip",
-            "Expense data uses the latest 2026/06 values available in the uploaded P&L files."),
-        card(class = "metric-card",
-             card_header("Operating Expense Comparison"),
-             plotlyOutput("fin_expense_plot", height = 490))
-      ),
-      nav_panel(
-        "Data",
-        card(class = "metric-card",
-             card_header("Finance Data"),
-             DTOutput("fin_table"))
+        
+        bslib::layout_columns(
+          col_widths = c(3, 3, 3, 3),
+          
+          div(
+            class = "kpi-box",
+            div(class = "kpi-label", "Toplam Aktif"),
+            div(class = "kpi-value", shiny::textOutput("fin_vb_assets"))
+          ),
+          div(
+            class = "kpi-box",
+            div(class = "kpi-label", "Özkaynaklar"),
+            div(class = "kpi-value", shiny::textOutput("fin_vb_equity"))
+          ),
+          div(
+            class = "kpi-box",
+            div(class = "kpi-label", "Esas Faaliyet Gelirleri"),
+            div(class = "kpi-value", shiny::textOutput("fin_vb_income"))
+          ),
+          div(
+            class = "kpi-box",
+            div(class = "kpi-label", "Net Faaliyet Kârı"),
+            div(class = "kpi-value", shiny::textOutput("fin_vb_profit"))
+          )
+        ),
+        
+        bslib::card(
+          class = "metric-card",
+          full_screen = TRUE,
+          bslib::card_header(shiny::textOutput("fin_overview_title")),
+          plotly::plotlyOutput("fin_overview_plot2", height = "460px")
+        )
+      )
+    ),
+    
+    finance_comparison_ui(
+      "structure",
+      "Finansal Yapı",
+      fin_structure_metrics,
+      "Varlıklar Toplamı"
+    ),
+    
+    finance_comparison_ui(
+      "profit",
+      "Kârlılık",
+      fin_profit_metrics,
+      "Esas Faaliyet Gelirleri"
+    ),
+    
+    bslib::nav_panel(
+      "Finansal Oranlar",
+      bslib::layout_sidebar(
+        sidebar = bslib::sidebar(
+          shiny::selectInput(
+            "fin_ratio_metric2",
+            "Karşılaştırma kalemi",
+            choices = stats::setNames(names(ratio_labels), ratio_labels),
+            selected = "equity_ratio"
+          ),
+          shiny::selectInput(
+            "fin_ratio_company2",
+            "Detay şirketi",
+            choices = finance_companies,
+            selected = "VDF"
+          )
+        ),
+        bslib::card(
+          class = "metric-card",
+          full_screen = TRUE,
+          bslib::card_header("2026/06 Finansal Oran Karşılaştırması"),
+          plotly::plotlyOutput("fin_ratio_compare2", height = "430px")
+        ),
+        bslib::card(
+          class = "metric-card",
+          full_screen = TRUE,
+          bslib::card_header("Seçilen Şirket | Finansal Oran Profili"),
+          plotly::plotlyOutput("fin_ratio_detail2", height = "390px")
+        )
+      )
+    ),
+    
+    bslib::nav_panel(
+      "Faaliyet Giderleri",
+      bslib::layout_sidebar(
+        sidebar = bslib::sidebar(
+          shiny::selectInput(
+            "fin_expense_metric2",
+            "Karşılaştırma kalemi",
+            choices = c(
+              "Esas Faaliyet Giderleri" = "ESAS FAALİYET GİDERLERİ (-)",
+              "Personel Giderleri" = "Personel Giderleri",
+              "Genel İşletme Giderleri" = "Genel İşletme Giderleri",
+              "Kıdem Tazminatı" = "Kıdem Tazminatı Karşılığı Gideri"
+            ),
+            selected = "ESAS FAALİYET GİDERLERİ (-)"
+          )
+        ),
+        bslib::card(
+          class = "metric-card",
+          full_screen = TRUE,
+          bslib::card_header("2026/06 Faaliyet Gideri Karşılaştırması"),
+          plotly::plotlyOutput("fin_expense_plot2", height = "470px")
+        )
+      )
+    ),
+    
+    bslib::nav_panel(
+      "Dönemsel Değişim",
+      bslib::layout_sidebar(
+        sidebar = bslib::sidebar(
+          shiny::selectInput(
+            "fin_change_metric2",
+            "Karşılaştırma kalemi",
+            choices = fin_metric_choices_all,
+            selected = "Varlıklar Toplamı"
+          ),
+          shiny::helpText(
+            "31.12.2025 ve 30.06.2026 değerlerini doğrudan karşılaştırır."
+          )
+        ),
+        bslib::card(
+          class = "metric-card",
+          full_screen = TRUE,
+          bslib::card_header("31.12.2025 → 30.06.2026 Karşılaştırması"),
+          plotly::plotlyOutput("fin_change_plot2", height = "410px")
+        ),
+        bslib::card(
+          class = "metric-card",
+          full_screen = TRUE,
+          bslib::card_header("Şirket Bazında Mutlak Değişim"),
+          plotly::plotlyOutput("fin_absolute_change_plot2", height = "390px")
+        )
+      )
+    ),
+    
+    bslib::nav_panel(
+      "Veri Kontrol",
+      bslib::card(
+        class = "metric-card",
+        full_screen = TRUE,
+        bslib::card_header("Kullanılan Finans Master Veri"),
+        DT::DTOutput("fin_table2")
       )
     )
   )
@@ -1285,8 +1951,8 @@ finance_ui <- div(
 factoring_ui <- div(
   class = "analysis-shell",
   analysis_header(
-    "Factoring Peer Analysis",
-    "Factoring companies peer analysis",
+    "Faktoring Emsal Analizi",
+    "Faktoring şirketleri karşılaştırmalı analizi",
     "factoring_home"
   ),
   
@@ -1295,14 +1961,14 @@ factoring_ui <- div(
       class = "note-strip",
       if (!file.exists(factoring_path)) {
         HTML(
-          "<b>Factoring data file is missing.</b><br>
-          Copy <code>factoring_master.csv</code> to
-          <code>data/factoring/factoring_master.csv</code>."
+          "<b>Faktoring veri dosyası bulunamadı.</b><br>
+          <code>factoring_master.csv</code> dosyasını
+          <code>data/factoring/factoring_master.csv</code> konumuna kopyalayın."
         )
       } else {
         HTML(
           paste0(
-            "<b>Factoring CSV was found, but its structure could not be mapped.</b><br>",
+            "<b>Faktoring CSV dosyası bulundu ancak yapısı otomatik olarak eşleştirilemedi.</b><br>",
             htmltools::htmlEscape(factoring_data_problem)
           )
         )
@@ -1478,78 +2144,183 @@ factoring_ui <- div(
 
 fleet_ui <- div(
   class = "analysis-shell",
-  analysis_header("Fleet Peer Analysis", "Fleet-leasing peer comparison", "fleet_home"),
-  page_sidebar(
-    fillable = TRUE,
-    sidebar = sidebar(
-      width = 255,
-      selectInput("fleet_period", "Period",
-                  choices = sort(unique(fleet$period), decreasing = TRUE),
-                  selected = "2026/06"),
-      selectInput("fleet_metric", "Metric",
-                  choices = fleet_metric_choices,
-                  selected = "leased_assets_net"),
-      hr(),
-      div(class = "small text-muted",
-          "TEB Arval 2026/06 is excluded because the report is not published.")
-    ),
-    navset_card_tab(
-      nav_panel(
-        "Overview",
-        layout_column_wrap(
-          width = 1/3,
-          div(class = "kpi-box",
-              div(class = "kpi-label", "Companies"),
-              div(class = "kpi-value", textOutput("fleet_kpi_companies"))),
-          div(class = "kpi-box",
-              div(class = "kpi-label", "Leader"),
-              div(class = "kpi-value", textOutput("fleet_kpi_leader"))),
-          div(class = "kpi-box",
-              div(class = "kpi-label", "Metric"),
-              div(class = "kpi-value", textOutput("fleet_kpi_metric")))
+  analysis_header(
+    "Filo Emsal Analizi",
+    "Filo kiralama şirketleri karşılaştırmalı analizi",
+    "fleet_home"
+  ),
+  
+  bslib::navset_card_tab(
+    
+    bslib::nav_panel(
+      "Genel Bakış",
+      bslib::layout_sidebar(
+        sidebar = bslib::sidebar(
+          shiny::selectInput(
+            "fleet_overview_company2",
+            "Şirket",
+            choices = fleet_companies,
+            selected = if ("VDF Filo" %in% fleet_companies) "VDF Filo" else fleet_companies[1]
+          ),
+          shiny::selectInput(
+            "fleet_overview_metric2",
+            "Karşılaştırma kalemi",
+            choices = fleet_metric_choices,
+            selected = if ("leased_assets_net" %in% unname(fleet_metric_choices)) {
+              "leased_assets_net"
+            } else {
+              unname(fleet_metric_choices)[1]
+            }
+          ),
+          shiny::selectInput(
+            "fleet_overview_period2",
+            "Dönem",
+            choices = sort(unique(fleet$period), decreasing = TRUE),
+            selected = "2026/06"
+          ),
+          shiny::helpText(
+            "TEB Arval 2026/06 raporu yayımlanmadığı için bu dönemde veri bulunmayabilir."
+          )
         ),
-        card(class = "metric-card",
-             card_header("Peer Snapshot"),
-             plotlyOutput("fleet_overview_plot", height = 430))
-      ),
-      nav_panel(
-        "Comparison",
-        card(class = "metric-card",
-             card_header("Selected Metric by Company"),
-             plotlyOutput("fleet_compare_plot", height = 500))
-      ),
-      nav_panel(
-        "Trends",
-        card(class = "metric-card",
-             card_header("Metric Trend"),
-             plotlyOutput("fleet_trend_plot", height = 500))
-      ),
-      nav_panel(
-        "Employee Productivity",
-        div(class = "note-strip",
-            "Period-specific employee counts are used where available. Otherwise the nearest known count is used as an approximation."),
-        card(class = "metric-card",
-             card_header("Metric per Employee"),
-             plotlyOutput("fleet_employee_plot", height = 490))
-      ),
-      nav_panel(
-        "Data",
-        card(class = "metric-card",
-             card_header("Fleet Data"),
-             DTOutput("fleet_table"))
+        
+        bslib::layout_columns(
+          col_widths = c(3, 3, 3, 3),
+          div(
+            class = "kpi-box",
+            div(class = "kpi-label", "Şirket"),
+            div(class = "kpi-value", shiny::textOutput("fleet_vb_company2"))
+          ),
+          div(
+            class = "kpi-box",
+            div(class = "kpi-label", "Seçilen Kalem"),
+            div(class = "kpi-value", shiny::textOutput("fleet_vb_metric2"))
+          ),
+          div(
+            class = "kpi-box",
+            div(class = "kpi-label", "Şirket Değeri"),
+            div(class = "kpi-value", shiny::textOutput("fleet_vb_value2"))
+          ),
+          div(
+            class = "kpi-box",
+            div(class = "kpi-label", "Şirket Sırası"),
+            div(class = "kpi-value", shiny::textOutput("fleet_vb_rank2"))
+          )
+        ),
+        
+        bslib::card(
+          class = "metric-card",
+          full_screen = TRUE,
+          bslib::card_header(shiny::textOutput("fleet_overview_title2")),
+          plotly::plotlyOutput("fleet_overview_plot2", height = "460px")
+        )
+      )
+    ),
+    
+    fleet_comparison_ui(
+      "assets",
+      "Filo Varlıkları",
+      fleet_asset_choices,
+      "leased_assets_net"
+    ),
+    
+    fleet_comparison_ui(
+      "performance",
+      "Finansman ve Performans",
+      fleet_performance_choices,
+      unname(fleet_performance_choices)[1]
+    ),
+    
+    bslib::nav_panel(
+      "Operasyonel Verimlilik",
+      bslib::layout_sidebar(
+        sidebar = bslib::sidebar(
+          shiny::selectInput(
+            "fleet_employee_metric2",
+            "Karşılaştırma kalemi",
+            choices = fleet_metric_choices,
+            selected = if ("leased_assets_net" %in% unname(fleet_metric_choices)) {
+              "leased_assets_net"
+            } else {
+              unname(fleet_metric_choices)[1]
+            }
+          ),
+          shiny::selectInput(
+            "fleet_employee_period2",
+            "Dönem",
+            choices = sort(unique(fleet$period), decreasing = TRUE),
+            selected = "2026/06"
+          )
+        ),
+        bslib::card(
+          class = "metric-card",
+          full_screen = TRUE,
+          bslib::card_header("Çalışan Başına Seçilen Kalem"),
+          plotly::plotlyOutput("fleet_employee_plot2", height = "450px")
+        ),
+        div(
+          class = "note-strip",
+          "Döneme ait çalışan sayısı varsa doğrudan kullanılır; yoksa veri setindeki fallback çalışan sayısı kullanılır."
+        )
+      )
+    ),
+    
+    bslib::nav_panel(
+      "Dönemsel Değişim",
+      bslib::layout_sidebar(
+        sidebar = bslib::sidebar(
+          shiny::selectInput(
+            "fleet_change_metric2",
+            "Karşılaştırma kalemi",
+            choices = fleet_metric_choices,
+            selected = if ("leased_assets_net" %in% unname(fleet_metric_choices)) {
+              "leased_assets_net"
+            } else {
+              unname(fleet_metric_choices)[1]
+            }
+          ),
+          shiny::helpText(
+            "31.12.2025 ve 30.06.2026 değerlerini doğrudan karşılaştırır."
+          )
+        ),
+        bslib::card(
+          class = "metric-card",
+          full_screen = TRUE,
+          bslib::card_header("31.12.2025 → 30.06.2026 Karşılaştırması"),
+          plotly::plotlyOutput("fleet_change_plot2", height = "410px")
+        ),
+        bslib::card(
+          class = "metric-card",
+          full_screen = TRUE,
+          bslib::card_header("Şirket Bazında Mutlak Değişim"),
+          plotly::plotlyOutput("fleet_absolute_change_plot2", height = "390px")
+        )
+      )
+    ),
+    
+    bslib::nav_panel(
+      "Veri Kontrol",
+      bslib::card(
+        class = "metric-card",
+        full_screen = TRUE,
+        bslib::card_header("Kullanılan Filo Master Veri"),
+        DT::DTOutput("fleet_table2")
       )
     )
   )
 )
 
-ui <- tagList(
+
+ui <- bslib::page_fillable(
+  theme = theme_hub,
+  padding = 0,
   tags$head(tags$style(HTML(hub_css))),
   navset_hidden(
     id = "main_view",
-    nav_panel("Home", value = "home", landing_ui),
-    nav_panel("Finance", value = "finance", finance_ui),
-    nav_panel("Factoring", value = "factoring", factoring_ui),
-    nav_panel("Fleet", value = "fleet", fleet_ui)
+    selected = "home",
+    nav_panel("Ana Sayfa", value = "home", landing_ui),
+    nav_panel("Finans", value = "finance", finance_ui),
+    nav_panel("Faktoring", value = "factoring", factoring_ui),
+    nav_panel("Filo", value = "fleet", fleet_ui)
   )
 )
 
@@ -1562,7 +2333,212 @@ server <- function(input, output, session) {
   observeEvent(input$factoring_home, nav_select("main_view", selected = "home"))
   observeEvent(input$fleet_home, nav_select("main_view", selected = "home"))
   
- 
+  
+  fin_get_value2 <- function(company_value, item_value, period_value = "2026/06") {
+    x <- finance |>
+      dplyr::filter(
+        .data$company == .env$company_value,
+        .data$period == .env$period_value,
+        .data$item == .env$item_value
+      ) |>
+      dplyr::pull(.data$value_mn_tl)
+    if (length(x) == 0) return("—")
+    fmt_mn(x[[1]])
+  }
+  
+  output$fin_vb_assets <- renderText({
+    req(input$fin_overview_company, input$fin_overview_period)
+    fin_get_value2(input$fin_overview_company, "Varlıklar Toplamı", input$fin_overview_period)
+  })
+  output$fin_vb_equity <- renderText({
+    req(input$fin_overview_company, input$fin_overview_period)
+    fin_get_value2(input$fin_overview_company, "Özkaynaklar", input$fin_overview_period)
+  })
+  output$fin_vb_income <- renderText({
+    req(input$fin_overview_company, input$fin_overview_period)
+    fin_get_value2(input$fin_overview_company, "Esas Faaliyet Gelirleri", input$fin_overview_period)
+  })
+  output$fin_vb_profit <- renderText({
+    req(input$fin_overview_company, input$fin_overview_period)
+    fin_get_value2(input$fin_overview_company, "Net Faaliyet Kârı (Zararı)", input$fin_overview_period)
+  })
+  output$fin_overview_title <- renderText({
+    req(input$fin_overview_metric, input$fin_overview_period)
+    paste0(input$fin_overview_metric, " | Şirket Karşılaştırması")
+  })
+  output$fin_overview_plot2 <- renderPlotly({
+    req(input$fin_overview_metric, input$fin_overview_period, input$fin_overview_company)
+    fin_plot_company_comparison(
+      input$fin_overview_metric,
+      input$fin_overview_period,
+      input$fin_overview_company
+    )
+  })
+  
+  fin_wire_comparison2 <- function(prefix, metrics) {
+    metric_input <- paste0("fin_", prefix, "_metric")
+    company_input <- paste0("fin_", prefix, "_company")
+    top_source <- paste0("fin_", prefix, "_top")
+    detail_source <- paste0("fin_", prefix, "_detail")
+    
+    observeEvent(plotly::event_data("plotly_click", source = top_source), {
+      click <- plotly::event_data("plotly_click", source = top_source)
+      if (!is.null(click$key) && click$key %in% finance_companies) {
+        updateSelectInput(session, company_input, selected = click$key)
+      }
+    })
+    
+    output[[top_source]] <- renderPlotly({
+      req(input[[metric_input]], input[[company_input]])
+      fin_plot_company_comparison(
+        input[[metric_input]], "2026/06", input[[company_input]], top_source
+      )
+    })
+    
+    output[[detail_source]] <- renderPlotly({
+      req(input[[company_input]])
+      fin_plot_company_detail(
+        input[[company_input]], metrics, "2026/06", detail_source
+      )
+    })
+    
+  }
+  
+  fin_wire_comparison2("structure", fin_structure_metrics)
+  fin_wire_comparison2("profit", fin_profit_metrics)
+  
+  output$fin_ratio_compare2 <- renderPlotly({
+    req(input$fin_ratio_metric2, input$fin_ratio_company2)
+    lbl <- ratio_labels[[input$fin_ratio_metric2]]
+    d <- finance_wide |>
+      dplyr::filter(.data$period == "2026/06") |>
+      dplyr::transmute(
+        company = .data$company,
+        value = .data[[input$fin_ratio_metric2]],
+        highlight = .data$company == input$fin_ratio_company2
+      ) |>
+      dplyr::arrange(.data$value)
+    
+    p <- ggplot(d, aes(
+      x = reorder(company, value), y = value,
+      fill = highlight,
+      text = paste0("<b>", company, "</b><br>", lbl, ": ", round(value, 1), "%")
+    )) +
+      geom_col(width = .56) +
+      scale_fill_manual(values = c("TRUE"="#25C7C9","FALSE"="#65858A"), guide="none") +
+      coord_flip() +
+      labs(x=NULL,y=NULL,title=paste0(lbl," | 2026/06")) +
+      theme_minimal(base_size=13) +
+      theme(panel.grid.major.y=element_blank(),panel.grid.minor=element_blank(),
+            plot.title=element_text(face="bold"))
+    ggplotly(p, tooltip="text") |> config(displayModeBar=FALSE)
+  })
+  
+  output$fin_ratio_detail2 <- renderPlotly({
+    req(input$fin_ratio_company2)
+    d <- finance_wide |>
+      dplyr::filter(
+        .data$period == "2026/06",
+        .data$company == input$fin_ratio_company2
+      ) |>
+      dplyr::select(dplyr::all_of(names(ratio_labels))) |>
+      tidyr::pivot_longer(everything(), names_to="ratio", values_to="value") |>
+      dplyr::mutate(label = unname(ratio_labels[ratio]))
+    
+    p <- ggplot(d, aes(
+      x = reorder(label, value), y = value,
+      text = paste0("<b>",label,"</b><br>",round(value,1),"%")
+    )) +
+      geom_col(width=.56, fill="#63C9C8") +
+      coord_flip() +
+      labs(x=NULL,y=NULL,title=paste0(input$fin_ratio_company2," | Finansal Oran Profili")) +
+      theme_minimal(base_size=13) +
+      theme(panel.grid.major.y=element_blank(),panel.grid.minor=element_blank(),
+            plot.title=element_text(face="bold"))
+    ggplotly(p, tooltip="text") |> config(displayModeBar=FALSE)
+  })
+  
+  output$fin_expense_plot2 <- renderPlotly({
+    req(input$fin_expense_metric2)
+    d <- get_finance_expenses() |>
+      dplyr::filter(.data$item == input$fin_expense_metric2) |>
+      dplyr::filter(!is.na(.data$value)) |>
+      dplyr::arrange(.data$value)
+    
+    p <- ggplot(d, aes(
+      x = reorder(company,value), y=value,
+      text=paste0("<b>",company,"</b><br>",fmt_mn(value/1000))
+    )) +
+      geom_col(width=.56, fill="#63C9C8") +
+      coord_flip() +
+      labs(x=NULL,y=NULL,title=paste0(input$fin_expense_metric2," | 2026/06")) +
+      theme_minimal(base_size=13) +
+      theme(panel.grid.major.y=element_blank(),panel.grid.minor=element_blank(),
+            plot.title=element_text(face="bold"))
+    ggplotly(p, tooltip="text") |> config(displayModeBar=FALSE)
+  })
+  
+  output$fin_change_plot2 <- renderPlotly({
+    req(input$fin_change_metric2)
+    d <- finance |>
+      dplyr::filter(
+        .data$item == input$fin_change_metric2,
+        .data$period %in% c("2025/12","2026/06")
+      ) |>
+      dplyr::mutate(period=factor(.data$period,levels=c("2025/12","2026/06")))
+    
+    p <- ggplot(d,aes(
+      x=company,y=abs(value_mn_tl),fill=period,
+      text=paste0("<b>",company,"</b><br>Dönem: ",period,"<br>",fmt_mn(value_mn_tl))
+    )) +
+      geom_col(position="dodge",width=.66) +
+      scale_fill_manual(values=c("2025/12"="#65858A","2026/06"="#25C7C9")) +
+      labs(x=NULL,y=NULL,fill="Dönem",
+           title=paste0(input$fin_change_metric2," | Dönemsel Karşılaştırma")) +
+      theme_minimal(base_size=13) +
+      theme(panel.grid.major.x=element_blank(),axis.text.x=element_text(angle=25,hjust=1),
+            plot.title=element_text(face="bold"))
+    ggplotly(p,tooltip="text") |> config(displayModeBar=FALSE)
+  })
+  
+  output$fin_absolute_change_plot2 <- renderPlotly({
+    req(input$fin_change_metric2)
+    d <- finance |>
+      dplyr::filter(
+        .data$item == input$fin_change_metric2,
+        .data$period %in% c("2025/12","2026/06")
+      ) |>
+      dplyr::select(company,period,value_mn_tl) |>
+      tidyr::pivot_wider(names_from=period,values_from=value_mn_tl) |>
+      dplyr::filter(!is.na(`2025/12`),!is.na(`2026/06`)) |>
+      dplyr::mutate(change=`2026/06`-`2025/12`) |>
+      dplyr::arrange(change)
+    
+    p <- ggplot(d,aes(
+      x=reorder(company,change),y=change,
+      text=paste0("<b>",company,"</b><br>2025/12: ",fmt_mn(`2025/12`),
+                  "<br>2026/06: ",fmt_mn(`2026/06`),"<br>Değişim: ",fmt_mn(change))
+    )) +
+      geom_col(width=.56,fill="#63C9C8") +
+      geom_hline(yintercept=0,linewidth=.4) +
+      coord_flip() +
+      labs(x=NULL,y=NULL,title=paste0(input$fin_change_metric2," | Mutlak Değişim")) +
+      theme_minimal(base_size=13) +
+      theme(panel.grid.major.y=element_blank(),panel.grid.minor=element_blank(),
+            plot.title=element_text(face="bold"))
+    ggplotly(p,tooltip="text") |> config(displayModeBar=FALSE)
+  })
+  
+  output$fin_table2 <- renderDT({
+    finance |>
+      dplyr::arrange(company,desc(period),item) |>
+      dplyr::mutate(value = fmt_mn(value_mn_tl)) |>
+      dplyr::select(company,period,item,value) |>
+      DT::datatable(rownames=FALSE,filter="top",
+                    options=list(pageLength=20,scrollX=TRUE))
+  })
+  
+  
   fin_period_data <- reactive({
     finance |>
       filter(period == input$fin_period, item == input$fin_metric)
@@ -1628,14 +2604,14 @@ server <- function(input, output, session) {
         y = value_mn_tl,
         group = company,
         color = company,
-        text = paste0("<b>", company, "</b><br>Period: ", period, "<br>", input$fin_metric, ": ", fmt_mn(value_mn_tl))
+        text = paste0("<b>", company, "</b><br>Dönem: ", period, "<br>", input$fin_metric, ": ", fmt_mn(value_mn_tl))
       )
     ) +
       geom_line(linewidth = 1.5) +
       geom_point(size = 3) +
       scale_color_manual(values = finance_company_colors) +
       scale_y_continuous(labels = function(v) fmt_mn(v)) +
-      labs(x = NULL, y = NULL, color = NULL, title = paste(input$fin_metric, "Trend")) +
+      labs(x = NULL, y = NULL, color = NULL, title = paste(input$fin_metric, "Eğilimi")) +
       theme_minimal(base_size = 13) +
       theme(legend.position = "bottom", panel.grid.minor = element_blank(),
             plot.title = element_text(face = "bold"))
@@ -1657,7 +2633,7 @@ server <- function(input, output, session) {
       geom_tile(color = "white", linewidth = 1) +
       geom_text(aes(label = paste0(round(value, 1), "%")), size = 3.6) +
       scale_fill_gradient(low = "#E8F7F5", high = "#2CBFC0") +
-      labs(x = NULL, y = NULL, fill = "%", title = "Financial Ratio Comparison | 2026/06") +
+      labs(x = NULL, y = NULL, fill = "%", title = "Finansal Oran Karşılaştırması | 2026/06") +
       theme_minimal(base_size = 12) +
       theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 25, hjust = 1),
             plot.title = element_text(face = "bold"))
@@ -1666,7 +2642,7 @@ server <- function(input, output, session) {
   })
   
   output$fin_expense_plot <- renderPlotly({
-    x <- finance_expenses |>
+    x <- get_finance_expenses() |>
       filter(item == "ESAS FAALİYET GİDERLERİ (-)") |>
       arrange(value)
     
@@ -1676,13 +2652,13 @@ server <- function(input, output, session) {
         x = value,
         y = reorder(company, value),
         fill = company,
-        text = paste0("<b>", company, "</b><br>Operating Expenses: ", fmt_mn(value / 1000))
+        text = paste0("<b>", company, "</b><br>Faaliyet Giderleri: ", fmt_mn(value / 1000))
       )
     ) +
       geom_col(width = .5, show.legend = FALSE) +
       scale_fill_manual(values = finance_company_colors) +
       scale_x_continuous(labels = function(v) fmt_mn(v / 1000)) +
-      labs(x = NULL, y = NULL, title = "Operating Expenses | 2026/06") +
+      labs(x = NULL, y = NULL, title = "Faaliyet Giderleri | 2026/06") +
       theme_minimal(base_size = 13) +
       theme(panel.grid.major.y = element_blank(), panel.grid.minor = element_blank(),
             plot.title = element_text(face = "bold"))
@@ -1701,6 +2677,7 @@ server <- function(input, output, session) {
       options = list(pageLength = 15, scrollX = TRUE)
     )
   })
+  
   
   if (factoring_loaded) {
     
@@ -1861,13 +2838,6 @@ server <- function(input, output, session) {
       company_input <- paste0("fac_", prefix, "_company")
       top_source <- paste0("fac_", prefix, "_top")
       detail_source <- paste0("fac_", prefix, "_detail")
-      right_source <- paste0("fac_", prefix, "_right")
-      
-      clicked_metric <- shiny::reactiveVal(NULL)
-      
-      shiny::observeEvent(input[[metric_input]], {
-        clicked_metric(NULL)
-      }, ignoreInit = TRUE)
       
       shiny::observeEvent(
         plotly::event_data("plotly_click", source = top_source),
@@ -1881,14 +2851,6 @@ server <- function(input, output, session) {
               selected = click$key
             )
           }
-        }
-      )
-      
-      shiny::observeEvent(
-        plotly::event_data("plotly_click", source = detail_source),
-        {
-          click <- plotly::event_data("plotly_click", source = detail_source)
-          if (!is.null(click$key)) clicked_metric(click$key)
         }
       )
       
@@ -1914,22 +2876,6 @@ server <- function(input, output, session) {
         )
       })
       
-      output[[right_source]] <- plotly::renderPlotly({
-        shiny::req(input[[metric_input]], input[[company_input]])
-        
-        metric_id_value <- clicked_metric()
-        
-        if (is.null(metric_id_value)) {
-          metric_id_value <- input[[metric_input]]
-        }
-        
-        fac_plot_company_comparison(
-          factoring_data,
-          metric_id_value = metric_id_value,
-          source_id = right_source,
-          highlight_company = input[[company_input]]
-        )
-      })
     }
     
     fac_wire_comparison("fact", "Faktoring")
@@ -2108,17 +3054,199 @@ server <- function(input, output, session) {
   }
   
   
+  output$fleet_vb_company2 <- renderText({
+    req(input$fleet_overview_company2)
+    input$fleet_overview_company2
+  })
+  output$fleet_vb_metric2 <- renderText({
+    req(input$fleet_overview_metric2)
+    x <- fleet |>
+      filter(metric_id == input$fleet_overview_metric2) |>
+      pull(metric) |>
+      unique()
+    if(length(x)) fleet_metric_label(x[[1]]) else input$fleet_overview_metric2
+  })
+  output$fleet_vb_value2 <- renderText({
+    req(input$fleet_overview_company2,input$fleet_overview_metric2,input$fleet_overview_period2)
+    x <- fleet |>
+      filter(
+        company == input$fleet_overview_company2,
+        metric_id == input$fleet_overview_metric2,
+        period == input$fleet_overview_period2
+      ) |>
+      pull(value)
+    if(length(x)==0) return("—")
+    fmt_tl(x[[1]])
+  })
+  output$fleet_vb_rank2 <- renderText({
+    req(input$fleet_overview_company2,input$fleet_overview_metric2,input$fleet_overview_period2)
+    d <- fleet |>
+      filter(
+        metric_id == input$fleet_overview_metric2,
+        period == input$fleet_overview_period2
+      ) |>
+      arrange(desc(value)) |>
+      mutate(rank=row_number())
+    x <- d |> filter(company==input$fleet_overview_company2)
+    if(nrow(x)==0) return("—")
+    paste0("#",x$rank," / ",nrow(d))
+  })
+  output$fleet_overview_title2 <- renderText({
+    req(input$fleet_overview_metric2)
+    m <- fleet |>
+      filter(metric_id==input$fleet_overview_metric2) |>
+      pull(metric) |>
+      unique()
+    paste0(if(length(m)) fleet_metric_label(m[[1]]) else input$fleet_overview_metric2,
+           " | Şirket Karşılaştırması")
+  })
+  output$fleet_overview_plot2 <- renderPlotly({
+    req(input$fleet_overview_metric2,input$fleet_overview_period2,input$fleet_overview_company2)
+    fleet_plot_company_comparison(
+      input$fleet_overview_metric2,
+      input$fleet_overview_period2,
+      input$fleet_overview_company2
+    )
+  })
+  
+  fleet_wire_comparison2 <- function(prefix, choices) {
+    metric_input <- paste0("fleet_",prefix,"_metric")
+    company_input <- paste0("fleet_",prefix,"_company")
+    top_source <- paste0("fleet_",prefix,"_top")
+    detail_source <- paste0("fleet_",prefix,"_detail")
+    
+    observeEvent(plotly::event_data("plotly_click",source=top_source),{
+      click <- plotly::event_data("plotly_click",source=top_source)
+      if(!is.null(click$key) && click$key %in% fleet_companies){
+        updateSelectInput(session,company_input,selected=click$key)
+      }
+    })
+    
+    output[[top_source]] <- renderPlotly({
+      req(input[[metric_input]],input[[company_input]])
+      fleet_plot_company_comparison(
+        input[[metric_input]],"2026/06",input[[company_input]],top_source
+      )
+    })
+    output[[detail_source]] <- renderPlotly({
+      req(input[[company_input]])
+      fleet_plot_company_detail(
+        input[[company_input]],choices,"2026/06",detail_source
+      )
+    })
+  }
+  
+  fleet_wire_comparison2("assets",fleet_asset_choices)
+  fleet_wire_comparison2("performance",fleet_performance_choices)
+  
+  output$fleet_employee_plot2 <- renderPlotly({
+    req(input$fleet_employee_metric2,input$fleet_employee_period2)
+    d <- fleet |>
+      filter(
+        period==input$fleet_employee_period2,
+        metric_id==input$fleet_employee_metric2
+      ) |>
+      select(company,period,value) |>
+      left_join(fleet_employees,by=c("company","period")) |>
+      mutate(value_per_employee=value/employees) |>
+      filter(!is.na(value_per_employee)) |>
+      arrange(value_per_employee)
+    
+    m <- fleet |>
+      filter(metric_id==input$fleet_employee_metric2) |>
+      pull(metric) |>
+      unique()
+    mt <- if(length(m)) m[[1]] else input$fleet_employee_metric2
+    
+    p <- ggplot(d,aes(
+      x=reorder(company,value_per_employee),y=value_per_employee,
+      text=paste0("<b>",company,"</b><br>Çalışan: ",employees,
+                  "<br>",mt," / Çalışan: ",fmt_tl(value_per_employee))
+    )) +
+      geom_col(width=.56,fill="#63C9C8") +
+      coord_flip() +
+      labs(x=NULL,y=NULL,title=paste0(mt," | Çalışan Başına")) +
+      theme_minimal(base_size=13) +
+      theme(panel.grid.major.y=element_blank(),panel.grid.minor=element_blank(),
+            plot.title=element_text(face="bold"))
+    ggplotly(p,tooltip="text") |> config(displayModeBar=FALSE)
+  })
+  
+  output$fleet_change_plot2 <- renderPlotly({
+    req(input$fleet_change_metric2)
+    d <- fleet |>
+      filter(
+        metric_id==input$fleet_change_metric2,
+        period %in% c("2025/12","2026/06")
+      ) |>
+      mutate(period=factor(period,levels=c("2025/12","2026/06")))
+    m <- unique(d$metric); mt <- if(length(m)) m[[1]] else input$fleet_change_metric2
+    
+    p <- ggplot(d,aes(
+      x=company,y=abs(value),fill=period,
+      text=paste0("<b>",company,"</b><br>Dönem: ",period,"<br>",fmt_tl(value))
+    )) +
+      geom_col(position="dodge",width=.66) +
+      scale_fill_manual(values=c("2025/12"="#65858A","2026/06"="#25C7C9")) +
+      labs(x=NULL,y=NULL,fill="Dönem",title=paste0(mt," | Dönemsel Karşılaştırma")) +
+      theme_minimal(base_size=13) +
+      theme(panel.grid.major.x=element_blank(),axis.text.x=element_text(angle=25,hjust=1),
+            plot.title=element_text(face="bold"))
+    ggplotly(p,tooltip="text") |> config(displayModeBar=FALSE)
+  })
+  
+  output$fleet_absolute_change_plot2 <- renderPlotly({
+    req(input$fleet_change_metric2)
+    d0 <- fleet |>
+      filter(
+        metric_id==input$fleet_change_metric2,
+        period %in% c("2025/12","2026/06")
+      )
+    mt <- if(nrow(d0)) unique(d0$metric)[[1]] else input$fleet_change_metric2
+    d <- d0 |>
+      select(company,period,value) |>
+      tidyr::pivot_wider(names_from=period,values_from=value) |>
+      filter(!is.na(`2025/12`),!is.na(`2026/06`)) |>
+      mutate(change=`2026/06`-`2025/12`) |>
+      arrange(change)
+    
+    p <- ggplot(d,aes(
+      x=reorder(company,change),y=change,
+      text=paste0("<b>",company,"</b><br>2025/12: ",fmt_tl(`2025/12`),
+                  "<br>2026/06: ",fmt_tl(`2026/06`),"<br>Değişim: ",fmt_tl(change))
+    )) +
+      geom_col(width=.56,fill="#63C9C8") +
+      geom_hline(yintercept=0,linewidth=.4) +
+      coord_flip() +
+      labs(x=NULL,y=NULL,title=paste0(mt," | Mutlak Değişim")) +
+      theme_minimal(base_size=13) +
+      theme(panel.grid.major.y=element_blank(),panel.grid.minor=element_blank(),
+            plot.title=element_text(face="bold"))
+    ggplotly(p,tooltip="text") |> config(displayModeBar=FALSE)
+  })
+  
+  output$fleet_table2 <- renderDT({
+    fleet |>
+      arrange(company,desc(period),metric) |>
+      mutate(value_display=fmt_tl(value)) |>
+      select(company,period,metric,value_display) |>
+      DT::datatable(rownames=FALSE,filter="top",
+                    options=list(pageLength=20,scrollX=TRUE))
+  })
+  
+  
   fleet_period_data <- reactive({
     fleet |>
       filter(period == input$fleet_period, metric_id == input$fleet_metric)
   })
   
   fleet_metric_name <- reactive({
-    fleet |>
+    x <- fleet |>
       filter(metric_id == input$fleet_metric) |>
       distinct(metric) |>
       pull(metric) |>
       first()
+    fleet_metric_label(x)
   })
   
   output$fleet_kpi_companies <- renderText(n_distinct(fleet_period_data()$company))
@@ -2186,14 +3314,14 @@ server <- function(input, output, session) {
         y = value,
         group = company,
         color = company,
-        text = paste0("<b>", company, "</b><br>Period: ", period, "<br>", fleet_metric_name(), ": ", fmt_tl(value))
+        text = paste0("<b>", company, "</b><br>Dönem: ", period, "<br>", fleet_metric_name(), ": ", fmt_tl(value))
       )
     ) +
       geom_line(linewidth = 1.6) +
       geom_point(size = 3.2) +
       scale_color_manual(values = fleet_company_colors) +
       scale_y_continuous(labels = function(v) fmt_tl(v)) +
-      labs(x = NULL, y = NULL, color = NULL, title = paste(fleet_metric_name(), "Trend")) +
+      labs(x = NULL, y = NULL, color = NULL, title = paste(fleet_metric_name(), "Eğilimi")) +
       theme_minimal(base_size = 13) +
       theme(legend.position = "bottom", panel.grid.minor = element_blank(),
             plot.title = element_text(face = "bold"))
@@ -2209,10 +3337,10 @@ server <- function(input, output, session) {
       mutate(
         value_per_employee = value / employees,
         source_note = case_when(
-          employee_source == "reported" ~ "Reported employee count",
-          employee_source == "current" ~ "Current employee count",
-          employee_source == "fallback_2025_12" ~ "Approximation using 2025/12 employee count",
-          TRUE ~ "Employee count unavailable"
+          employee_source == "reported" ~ "Raporlanan çalışan sayısı",
+          employee_source == "current" ~ "Güncel çalışan sayısı",
+          employee_source == "fallback_2025_12" ~ "2025/12 çalışan sayısı kullanılarak yaklaşık değer",
+          TRUE ~ "Çalışan sayısı mevcut değil"
         )
       ) |>
       filter(!is.na(value_per_employee)) |>
@@ -2225,16 +3353,16 @@ server <- function(input, output, session) {
         y = reorder(company, value_per_employee),
         text = paste0(
           "<b>", company, "</b><br>",
-          "Employees: ", employees, "<br>",
+          "Çalışan Sayısı: ", employees, "<br>",
           source_note, "<br>",
-          fleet_metric_name(), " / Employee: ", fmt_tl(value_per_employee)
+          fleet_metric_name(), " / Çalışan: ", fmt_tl(value_per_employee)
         )
       )
     ) +
       geom_col(width = .48, fill = "#A6E7E7") +
       scale_x_continuous(labels = function(v) fmt_tl(v)) +
-      labs(x = paste(fleet_metric_name(), "per Employee"), y = NULL,
-           title = paste(fleet_metric_name(), "per Employee |", input$fleet_period)) +
+      labs(x = paste(fleet_metric_name(), "çalışan başına"), y = NULL,
+           title = paste(fleet_metric_name(), "çalışan başına |", input$fleet_period)) +
       theme_minimal(base_size = 13) +
       theme(panel.grid.major.y = element_blank(), panel.grid.minor = element_blank(),
             plot.title = element_text(face = "bold"))
